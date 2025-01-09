@@ -120,9 +120,36 @@ pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
     // todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
 
-    assert!(a.shape().len() >= 2);
-    assert!(b.shape().len() >= 2);
-    assert!(c.shape().len() >= 2);
+    let (ndima, ndimb, ndimc) = (a.shape().len(), b.shape().len(), c.shape().len());
+    assert!(ndima >= 2);
+    assert!(ndimb >= 2);
+    assert!(ndimc >= 2);
+    let (m, k) = (a.shape()[ndima - 2], a.shape()[ndima - 1]);
+    let (n, kb) = (b.shape()[ndimb - 2], b.shape()[ndimb - 1]);
+    let (mc, nc) = (c.shape()[ndimc - 2], c.shape()[ndimc - 1]);
+    assert!(k == kb);
+    assert!(m == mc);
+    assert!(n == nc);
+    let batch = a.size() / (m * k);
+    assert_eq!(batch, b.size() / (k * n));
+    assert_eq!(batch, c.size() / (m * n));
+
+    let a_ = a.data();
+    let b_ = b.data();
+    let c_ = unsafe { c.data_mut() };
+    for i in 0..batch {
+        for j in 0..m {
+            for l in 0..n {
+                let ai = &a_[i * m * k + j * k..i * m * k + (j + 1) * k];
+                let bi = &b_[i * n * k + l * k..i * n * k + (l + 1) * k];
+                let ci = &mut c_[i * m * n + j * n + l];
+                *ci *= beta;
+                for p in 0..k {
+                    *ci += alpha * ai[p] * bi[p];
+                }
+            }
+        }
+    }
 }
 
 // Dot product of two tensors (treated as vectors)

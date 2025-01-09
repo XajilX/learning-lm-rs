@@ -71,25 +71,58 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
 }
 
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+    // todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+    let len = y.size();
+    assert!(len == x.size());
+    let ndim = y.shape().len();
+    assert_eq!(ndim, x.shape().len());
+    let n = y.shape()[ndim - 1];
+    assert_eq!(n, x.shape()[ndim - 1]);
+    assert_eq!(n, w.size());
+    let mut y_ = unsafe { y.data_mut() };
+    let x_ = x.data();
+    let w_ = w.data();
+
+    let batch = len / n;
+    let factor = 1. / n as f32;
+    for i in 0..batch {
+        let offset = i * n;
+        let mut sum = 0f32;
+        for j in 0..n {
+            let xj = x_[offset + j];
+            sum += xj * xj;
+
+            y_[offset + j] = xj * w_[j];
+        }
+        sum = 1. / (sum * factor + epsilon).sqrt();
+        for j in 0..n {
+            y_[offset + j] *= sum;
+        }
+    }
 }
 
 // y = silu(x) * y
 // hint: this is an element-wise operation
 pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
-    // let len = y.size();
-    // assert!(len == x.size());
+    let len = y.size();
+    assert!(len == x.size());
 
-    // let _y = unsafe { y.data_mut() };
-    // let _x = x.data();
+    let y_ = unsafe { y.data_mut() };
+    let x_ = x.data();
 
-    todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
+    y_.iter_mut().zip(x_).for_each(|(y, x)| {
+        *y *= x / (1. + (-x).exp());
+    });
 }
 
 // C = beta * C + alpha * A @ B^T
 // hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+    // todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+
+    assert!(a.shape().len() >= 2);
+    assert!(b.shape().len() >= 2);
+    assert!(c.shape().len() >= 2);
 }
 
 // Dot product of two tensors (treated as vectors)

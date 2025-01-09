@@ -3,7 +3,7 @@ use std::vec;
 
 use crate::config::LlamaConfigJson;
 use crate::kvcache::KVCache;
-use crate::operators::{self as OP, matmul_transb, rms_norm, swiglu};
+use crate::operators::{self as OP, masked_softmax, matmul_transb, rms_norm, swiglu};
 use crate::params::LLamaParams;
 use crate::tensor::Tensor;
 use safetensors::SafeTensors;
@@ -101,10 +101,40 @@ impl Llama<f32> {
             let full_k = &mut cache.k_cache(layer, 0); // (total_seq, n_kv_h * dqkv)
             let full_v = &mut cache.v_cache(layer, 0); // (total_seq, n_kv_h * dqkv)
 
-            todo!("self_attention(...)");
-            todo!("down_proj matmul and add residual");
+            // todo!("self_attention(...)");
+            self_attention(
+                &mut hidden_states,
+                &mut att_scores,
+                q,
+                full_k,
+                full_v,
+                self.n_kv_h,
+                n_groups,
+                seq_len,
+                total_seq_len,
+                self.dqkv,
+            );
+            // todo!("down_proj matmul and add residual");
+            matmul_transb(
+                &mut residual,
+                1.,
+                &hidden_states,
+                &self.params.wo[layer],
+                1.,
+            );
 
-            todo!("mlp(...)");
+            // todo!("mlp(...)");
+            mlp(
+                &mut residual,
+                &mut hidden_states,
+                &mut gate_buf,
+                &mut up_buf,
+                &self.params.w_up[layer],
+                &self.params.w_down[layer],
+                &self.params.w_gate[layer],
+                &self.params.rms_ffn_w[layer],
+                self.eps,
+            );
         }
 
         // No matter what seq_len, the output is always a 1D vector of length vocab,
@@ -153,7 +183,56 @@ fn self_attention(
     total_seq_len: usize,
     dqkv: usize,
 ) {
-    todo!("Implement self_attention");
+    // todo!("Implement self_attention");
+
+    let factor = 1. / (dqkv as f32).sqrt();
+    let q_ = q.data();
+    let k_ = k.data();
+    let v_ = v.data();
+    let att_ = unsafe { att_scores.data_mut() };
+
+    for i in 0..n_kv_h {
+        for j in 0..n_groups {
+            for l in 0..seq_len {
+                for m in 0..total_seq_len {
+                    let mut sum = 0.;
+                    let qv = &q_[(l * n_kv_h * dqkv * n_groups + i * n_groups * dqkv + j * dqkv)
+                        ..(l * n_kv_h * dqkv * n_groups + i * n_groups * dqkv + (j + 1) * dqkv)];
+                    let kv =
+                        &k_[(m * n_kv_h * dqkv + i * dqkv)..(m * n_kv_h * dqkv + (i + 1) * dqkv)];
+                    for n in 0..dqkv {
+                        sum += qv[n] * kv[n];
+                    }
+                    att_[i * n_groups * seq_len * total_seq_len
+                        + j * seq_len * total_seq_len
+                        + l * total_seq_len
+                        + m] = sum * factor;
+                }
+            }
+        }
+    }
+    masked_softmax(att_scores);
+    let att_ = att_scores.data();
+    let h_ = unsafe { hidden_states.data_mut() };
+    for i in 0..n_kv_h {
+        for j in 0..n_groups {
+            for l in 0..seq_len {
+                let attv = &att_[i * n_groups * seq_len * total_seq_len
+                    + j * seq_len * total_seq_len
+                    + l * total_seq_len
+                    ..i * n_groups * seq_len * total_seq_len
+                        + j * seq_len * total_seq_len
+                        + (l + 1) * total_seq_len];
+                for m in 0..dqkv {
+                    let mut sum = 0.;
+                    for n in 0..total_seq_len {
+                        sum += attv[n] * v_[n * n_kv_h * dqkv + i * dqkv + m];
+                    }
+                    h_[l * n_kv_h * n_groups * dqkv + i * n_groups * dqkv + j * dqkv + m] = sum;
+                }
+            }
+        }
+    }
 }
 
 fn mlp(

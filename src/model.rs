@@ -3,7 +3,9 @@ use std::vec;
 
 use crate::config::LlamaConfigJson;
 use crate::kvcache::KVCache;
-use crate::operators::{self as OP, masked_softmax, matmul_transb, rms_norm, swiglu};
+use crate::operators::{
+    self as OP, masked_softmax, matmul_transb, random_sample, rms_norm, swiglu,
+};
 use crate::params::LLamaParams;
 use crate::tensor::Tensor;
 use safetensors::SafeTensors;
@@ -43,7 +45,7 @@ impl Llama<f32> {
             eps: config.rms_norm_eps,
             rope_theta: config.rope_theta,
             max_seq_len: config.max_position_embeddings,
-            params: params,
+            params,
             bos_token_id: config.bos_token_id,
             eos_token_id: config.eos_token_id,
         }
@@ -165,8 +167,26 @@ impl Llama<f32> {
     ) -> Vec<u32> {
         let mut result = Vec::<u32>::new();
 
-        todo!("实现文本生成");
+        // todo!("实现文本生成");
+        let mut kv_cache = self.new_cache();
 
+        let logit = self.forward(
+            &Tensor::new(token_ids.to_vec(), &vec![token_ids.len() as usize]),
+            &mut kv_cache,
+        );
+        let new_id = random_sample(&logit, top_p, top_k, temperature);
+        result.push(new_id);
+        while result.len() < max_len {
+            let logit = self.forward(
+                &Tensor::new(result[result.len() - 1..].to_vec(), &vec![1usize]),
+                &mut kv_cache,
+            );
+            let new_id = random_sample(&logit, top_p, top_k, temperature);
+            result.push(new_id);
+            if new_id == self.eos_token_id {
+                break;
+            }
+        }
         result
     }
 }

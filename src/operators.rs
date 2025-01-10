@@ -75,11 +75,12 @@ pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: 
     let len = y.size();
     assert!(len == x.size());
     let ndim = y.shape().len();
-    assert_eq!(ndim, x.shape().len());
+    assert!(ndim == x.shape().len() || (ndim == x.shape().len() + 1 && y.shape()[0] == 1));
+    let ndx = x.shape().len();
     let n = y.shape()[ndim - 1];
-    assert_eq!(n, x.shape()[ndim - 1]);
+    assert_eq!(n, x.shape()[ndx - 1]);
     assert_eq!(n, w.size());
-    let mut y_ = unsafe { y.data_mut() };
+    let y_ = unsafe { y.data_mut() };
     let x_ = x.data();
     let w_ = w.data();
 

@@ -13,7 +13,7 @@ impl<T: Copy + Clone + Default> Tensor<T> {
             data: Arc::new(data.into_boxed_slice().try_into().unwrap()),
             shape: shape.clone(),
             offset: 0,
-            length: length,
+            length,
         }
     }
 
@@ -61,8 +61,6 @@ impl<T: Copy + Clone + Default> Tensor<T> {
             length: new_length,
         }
     }
-
-
 }
 
 // Some helper functions for testing and debugging
@@ -74,12 +72,15 @@ impl Tensor<f32> {
         }
         let a = self.data();
         let b = other.data();
-        
+
         return a.iter().zip(b).all(|(x, y)| float_eq(x, y, rel));
     }
     #[allow(unused)]
-    pub fn print(&self){
-        println!("shpae: {:?}, offset: {}, length: {}", self.shape, self.offset, self.length);
+    pub fn print(&self) {
+        println!(
+            "shpae: {:?}, offset: {}, length: {}",
+            self.shape, self.offset, self.length
+        );
         let dim = self.shape()[self.shape().len() - 1];
         let batch = self.length / dim;
         for i in 0..batch {

@@ -1,4 +1,4 @@
-use std::ptr::{slice_from_raw_parts, slice_from_raw_parts_mut};
+use std::ptr::slice_from_raw_parts;
 
 use crate::config::LlamaConfigJson;
 use crate::tensor::Tensor;

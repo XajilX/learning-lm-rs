@@ -19,8 +19,8 @@ impl<T: Default + Copy> KVCache<T> {
             v_cache: (0..n_layers)
                 .map(|_| Tensor::default(&vec![max_seq_len, dim]))
                 .collect(),
-            max_seq_len: max_seq_len,
-            dim: dim,
+            max_seq_len,
+            dim,
             length: init_len,
         }
     }
@@ -33,7 +33,7 @@ impl<T: Default + Copy> KVCache<T> {
         self.v_cache[layer].slice(start * self.dim, &vec![self.length - start, self.dim])
     }
 
-    pub fn increment(&mut self, seq_len: usize){
+    pub fn increment(&mut self, seq_len: usize) {
         self.length += seq_len;
     }
 
